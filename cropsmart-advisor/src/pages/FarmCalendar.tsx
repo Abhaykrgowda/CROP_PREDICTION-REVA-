@@ -501,9 +501,12 @@ const FarmCalendar = () => {
           </motion.div>
         )}
 
-        {/* Back to results button */}
-        <div className="mt-8 flex justify-center">
-          <Button variant="hero" className="h-12 px-8 text-base" onClick={() => navigate(-1)}>
+        {/* Action buttons */}
+        <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <Button variant="hero" className="h-12 px-8 text-base gap-2" onClick={() => navigate("/dashboard")}>
+            ➕ Add Another Land
+          </Button>
+          <Button variant="outline" className="h-12 px-8 text-base" onClick={() => navigate(-1)}>
             ← Back to Recommendations
           </Button>
         </div>
