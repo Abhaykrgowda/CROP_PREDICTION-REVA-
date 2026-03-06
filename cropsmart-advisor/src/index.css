@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+@layer base {
+  :root {
+    --background: 80 20% 97%;
+    --foreground: 30 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 30 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 20% 15%;
+
+    --primary: 142 50% 36%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 40% 92%;
+    --secondary-foreground: 30 30% 25%;
+
+    --muted: 80 15% 93%;
+    --muted-foreground: 30 10% 50%;
+
+    --accent: 205 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 80 15% 88%;
+    --input: 80 15% 88%;
+    --ring: 142 50% 36%;
+
+    --radius: 0.75rem;
+
+    --earth: 30 35% 40%;
+    --earth-foreground: 0 0% 100%;
+    --earth-light: 30 30% 94%;
+
+    --weather: 205 70% 50%;
+    --weather-foreground: 0 0% 100%;
+    --weather-light: 205 60% 94%;
+
+    --profit: 142 60% 40%;
+    --profit-light: 142 50% 94%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(142 50% 36%), hsl(142 40% 28%));
+    --gradient-earth: linear-gradient(135deg, hsl(30 35% 40%), hsl(30 25% 30%));
+    --gradient-sky: linear-gradient(135deg, hsl(205 70% 50%), hsl(205 60% 40%));
+
+    --shadow-card: 0 4px 20px -4px hsl(142 50% 36% / 0.1);
+    --shadow-elevated: 0 8px 30px -8px hsl(30 20% 15% / 0.15);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .gradient-earth {
+    background: var(--gradient-earth);
+  }
+  .gradient-sky {
+    background: var(--gradient-sky);
+  }
+}
