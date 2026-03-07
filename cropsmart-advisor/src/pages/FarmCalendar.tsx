@@ -15,6 +15,11 @@ import {
   Loader2,
   X,
   Camera,
+  Activity,
+  ShieldCheck,
+  AlertTriangle,
+  Lightbulb,
+  Sprout,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -43,6 +48,17 @@ type CalendarState = {
   source?: string;
   start_date?: string;
 };
+
+type PhotoAnalysis = {
+  health_status?: string;
+  confidence?: string;
+  diseases?: string[];
+  recommendations?: string[];
+  growth_stage?: string;
+  summary?: string;
+};
+
+type PhotoEntry = { url: string; filename: string; analysis?: PhotoAnalysis | null };
 
 /* ------------------------------------------------------------------ */
 /* Activity‑type config (colours + icons)                              */
@@ -109,7 +125,7 @@ const FarmCalendar = () => {
   const [schedule, setSchedule] = useState<DaySchedule[]>(routeState.schedule ?? []);
   const [source, setSource] = useState(routeState.source ?? "");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [photoMap, setPhotoMap] = useState<Record<string, { url: string; filename: string }[]>>({});
+  const [photoMap, setPhotoMap] = useState<Record<string, PhotoEntry[]>>({});
   const calendarRef = useRef<HTMLDivElement>(null);
 
   // Close popover on click outside the calendar grid
@@ -141,11 +157,11 @@ const FarmCalendar = () => {
     fetch(`http://127.0.0.1:5000/farmer/photos?phone=${phone}`)
       .then((r) => r.json())
       .then((data) => {
-        const map: Record<string, { url: string; filename: string }[]> = {};
+        const map: Record<string, PhotoEntry[]> = {};
         for (const p of data.photos ?? []) {
           const dateKey = p.date;
           if (!map[dateKey]) map[dateKey] = [];
-          map[dateKey].push({ url: `http://127.0.0.1:5000${p.url}`, filename: p.filename });
+          map[dateKey].push({ url: `http://127.0.0.1:5000${p.url}`, filename: p.filename, analysis: p.analysis ?? null });
         }
         setPhotoMap(map);
       })
@@ -430,8 +446,14 @@ const FarmCalendar = () => {
                           alt="Crop"
                           className="w-full h-[70px] rounded-md object-cover border-2 border-emerald-300"
                         />
-                        {dayPhotos.length > 1 && (
-                          <span className="mt-0.5 text-[10px] text-emerald-600 font-medium">+{dayPhotos.length - 1} more</span>
+                        {dayPhotos[0].analysis?.health_status && (
+                          <span className={`mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            dayPhotos[0].analysis.health_status === "Healthy" ? "bg-green-100 text-green-700" :
+                            dayPhotos[0].analysis.health_status === "Mild Issue" || dayPhotos[0].analysis.health_status === "Stressed" ? "bg-yellow-100 text-yellow-700" :
+                            "bg-red-100 text-red-700"
+                          }`}>
+                            {dayPhotos[0].analysis.health_status}
+                          </span>
                         )}
                       </div>
                     ) : hasTask ? (
@@ -472,21 +494,47 @@ const FarmCalendar = () => {
                           </button>
                         </div>
 
-                        {/* If photos exist, show ONLY photos (no tasks) */}
+                        {/* If photos exist, show ONLY photos + analysis (no tasks) */}
                         {dayPhotos.length > 0 ? (
                           <div>
                             <p className="mb-2 text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                              <Camera className="h-3 w-3" /> Crop Progress Photos
+                              <Camera className="h-3 w-3" /> Crop Progress
                             </p>
                             <div className="space-y-2">
                               {dayPhotos.map((photo, pi) => (
-                                <img
-                                  key={pi}
-                                  src={photo.url}
-                                  alt={`Crop ${pi + 1}`}
-                                  className="w-full rounded-lg object-cover border-2 border-emerald-200 cursor-pointer hover:scale-[1.02] transition-transform"
-                                  onClick={() => window.open(photo.url, "_blank")}
-                                />
+                                <div key={pi}>
+                                  <img
+                                    src={photo.url}
+                                    alt={`Crop ${pi + 1}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="w-full rounded-lg object-cover border-2 border-emerald-200 cursor-pointer hover:scale-[1.02] transition-transform focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                    onClick={() => window.open(photo.url, "_blank")}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.open(photo.url, "_blank"); } }}
+                                  />
+                                  {photo.analysis && (
+                                    <div className="mt-2 space-y-1.5">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                          photo.analysis.health_status === "Healthy" ? "bg-green-100 text-green-700" :
+                                          photo.analysis.health_status === "Mild Issue" || photo.analysis.health_status === "Stressed" ? "bg-yellow-100 text-yellow-700" :
+                                          "bg-red-100 text-red-700"
+                                        }`}>
+                                          <Activity className="h-3 w-3" />
+                                          {photo.analysis.health_status} {photo.analysis.confidence && `(${photo.analysis.confidence})`}
+                                        </span>
+                                        {photo.analysis.growth_stage && (
+                                          <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                            <Sprout className="h-3 w-3" /> {photo.analysis.growth_stage}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {photo.analysis.summary && (
+                                        <p className="text-[11px] text-muted-foreground leading-snug">{photo.analysis.summary}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -534,21 +582,84 @@ const FarmCalendar = () => {
                 </Button>
               </div>
 
-              {/* If photos exist for this date, show ONLY big photos; otherwise show tasks */}
+              {/* If photos exist for this date, show ONLY big photos + analysis; otherwise show tasks */}
               {(photoMap[selectedDate] ?? []).length > 0 ? (
                 <div>
                   <h4 className="mb-3 text-sm font-bold text-emerald-600 flex items-center gap-1.5">
-                    <Camera className="h-4 w-4" /> Crop Progress Photos
+                    <Camera className="h-4 w-4" /> Crop Progress & AI Analysis
                   </h4>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-6">
                     {(photoMap[selectedDate] ?? []).map((photo, pi) => (
-                      <img
-                        key={pi}
-                        src={photo.url}
-                        alt={`Crop progress ${pi + 1}`}
-                        className="w-full rounded-xl object-cover border-2 border-emerald-200 cursor-pointer hover:scale-[1.02] transition-transform shadow-sm"
-                        onClick={() => window.open(photo.url, "_blank")}
-                      />
+                      <div key={pi} className="rounded-xl border border-emerald-100 overflow-hidden shadow-sm">
+                        <img
+                          src={photo.url}
+                          alt={`Crop progress ${pi + 1}`}
+                          role="button"
+                          tabIndex={0}
+                          className="w-full max-h-[400px] object-cover cursor-pointer hover:scale-[1.01] transition-transform focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                          onClick={() => window.open(photo.url, "_blank")}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.open(photo.url, "_blank"); } }}
+                        />
+                        {photo.analysis && (
+                          <div className="p-4 bg-gradient-to-b from-emerald-50/50 to-white space-y-3">
+                            {/* Status + Growth badges */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
+                                photo.analysis.health_status === "Healthy" ? "bg-green-100 text-green-700 ring-1 ring-green-200" :
+                                photo.analysis.health_status === "Mild Issue" || photo.analysis.health_status === "Stressed" ? "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200" :
+                                "bg-red-100 text-red-700 ring-1 ring-red-200"
+                              }`}>
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                                {photo.analysis.health_status}
+                                {photo.analysis.confidence && <span className="opacity-70">({photo.analysis.confidence})</span>}
+                              </span>
+                              {photo.analysis.growth_stage && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium bg-blue-50 text-blue-700 px-3 py-1 rounded-full ring-1 ring-blue-200">
+                                  <Sprout className="h-3.5 w-3.5" /> {photo.analysis.growth_stage}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Summary */}
+                            {photo.analysis.summary && (
+                              <p className="text-sm text-foreground/80 leading-relaxed">{photo.analysis.summary}</p>
+                            )}
+
+                            {/* Diseases */}
+                            {photo.analysis.diseases && photo.analysis.diseases.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold text-red-600 flex items-center gap-1 mb-1.5">
+                                  <AlertTriangle className="h-3.5 w-3.5" /> Issues Detected
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {photo.analysis.diseases.map((d, di) => (
+                                    <span key={di} className="text-[11px] bg-red-50 text-red-700 px-2 py-0.5 rounded-full border border-red-200">
+                                      {d}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Recommendations */}
+                            {photo.analysis.recommendations && photo.analysis.recommendations.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mb-1.5">
+                                  <Lightbulb className="h-3.5 w-3.5" /> Recommendations
+                                </p>
+                                <ul className="space-y-1">
+                                  {photo.analysis.recommendations.map((r, ri) => (
+                                    <li key={ri} className="text-xs text-foreground/70 flex items-start gap-1.5">
+                                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                                      {r}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>

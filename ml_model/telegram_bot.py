@@ -45,6 +45,14 @@ try:
 except ImportError:
     HAS_TRANSLATOR = False
 
+try:
+    import google.generativeai as genai
+
+    HAS_GENAI = True
+except ImportError:
+    genai = None
+    HAS_GENAI = False
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -81,6 +89,85 @@ def _load_env():
 _load_env()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+# ---------------------------------------------------------------------------
+# Gemini Vision — crop health analysis
+# ---------------------------------------------------------------------------
+_gemini_model = None
+
+
+def _get_gemini_vision():
+    """Lazily configure and return the Gemini model for image analysis."""
+    global _gemini_model
+    if _gemini_model is not None:
+        return _gemini_model
+    if not HAS_GENAI:
+        return None
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+    genai.configure(api_key=api_key)
+    _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+    return _gemini_model
+
+
+def _analyze_crop_image(image_path: str, crop_name: str = "") -> dict | None:
+    """Use Gemini vision to analyze a crop photo.
+
+    Returns a dict with keys:
+        health_status  — e.g. Healthy, Diseased, Stressed
+        confidence     — percentage string
+        diseases       — list of detected diseases/issues
+        recommendations — list of actionable advice strings
+        growth_stage   — estimated growth stage
+        summary        — one-line human-readable summary
+    Returns None on failure.
+    """
+    model = _get_gemini_vision()
+    if model is None:
+        return None
+
+    import PIL.Image as PILImage
+
+    try:
+        img = PILImage.open(image_path)
+    except Exception as exc:
+        logger.warning("Could not open image %s: %s", image_path, exc)
+        return None
+
+    crop_context = f" of {crop_name}" if crop_name else ""
+    prompt = (
+        f"You are an expert agricultural scientist. Analyze this crop photo{crop_context}.\n"
+        "Return ONLY a JSON object (no markdown, no code fences) with these keys:\n"
+        '  "health_status": one of "Healthy", "Mild Issue", "Diseased", "Severely Diseased", "Stressed", "Nutrient Deficient"\n'
+        '  "confidence": percentage like "85%"\n'
+        '  "diseases": array of detected disease/pest names (empty array if healthy)\n'
+        '  "recommendations": array of 2-4 short actionable advice strings\n'
+        '  "growth_stage": estimated growth stage like "Seedling", "Vegetative", "Flowering", "Fruiting", "Mature"\n'
+        '  "summary": one concise sentence describing the crop\'s condition\n'
+    )
+
+    try:
+        response = model.generate_content([prompt, img])
+        text = response.text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3].strip()
+        if text.startswith("json"):
+            text = text[4:].strip()
+
+        import json as _json
+
+        result = _json.loads(text)
+        logger.info("Gemini crop analysis: %s", result.get("health_status", "unknown"))
+        return result
+    except Exception as exc:
+        logger.warning("Gemini vision analysis failed: %s", exc)
+        return None
+
+
 # Time to send daily digest (24-hr, IST → converted to UTC internally)
 DAILY_NOTIFY_HOUR = int(os.getenv("DAILY_NOTIFY_HOUR", "7"))  # 7 AM
 DAILY_NOTIFY_MINUTE = int(os.getenv("DAILY_NOTIFY_MINUTE", "0"))
@@ -371,22 +458,85 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filepath = os.path.join(phone_dir, filename)
     await file.download_to_drive(filepath)
 
-    # Save metadata to DB so the calendar can display the photo
+    # ---------- Gemini AI crop health analysis ----------
+    # Find the farmer's current crop for extra context
+    crop_name = ""
+    try:
+        conn_tmp = _get_conn()
+        plan = conn_tmp.execute(
+            "SELECT crop FROM cultivation_plans WHERE phone = ? ORDER BY id DESC LIMIT 1",
+            (phone,),
+        ).fetchone()
+        if plan:
+            crop_name = plan["crop"]
+        conn_tmp.close()
+    except Exception:
+        pass
+
+    analysis = _analyze_crop_image(filepath, crop_name)
+    analysis_json = json.dumps(analysis) if analysis else None
+
+    # Save metadata + analysis to DB so the calendar can display the photo
     conn = _get_conn()
     conn.execute(
-        "INSERT INTO crop_photos (phone, date, filename, created_at) VALUES (?, ?, ?, ?)",
-        (phone, today, filename, datetime.now().isoformat()),
+        "INSERT INTO crop_photos (phone, date, filename, created_at, analysis) VALUES (?, ?, ?, ?, ?)",
+        (phone, today, filename, datetime.now().isoformat(), analysis_json),
     )
     conn.commit()
     conn.close()
 
-    await update.message.reply_text(
-        f"✅ *Photo saved!* 📸\n\n"
-        f"Thank you, *{farmer_name}*! Your crop progress photo for *{today}* has been recorded.\n"
-        f"Keep sending daily photos so we can track your crop's growth! 🌱",
-        parse_mode="Markdown",
+    # Build response message
+    if analysis:
+        status = analysis.get("health_status", "Unknown")
+        confidence = analysis.get("confidence", "")
+        summary = analysis.get("summary", "")
+        diseases = analysis.get("diseases", [])
+        recommendations = analysis.get("recommendations", [])
+        growth = analysis.get("growth_stage", "")
+
+        status_emoji = {
+            "Healthy": "🟢",
+            "Mild Issue": "🟡",
+            "Diseased": "🟠",
+            "Severely Diseased": "🔴",
+            "Stressed": "🟡",
+            "Nutrient Deficient": "🟠",
+        }.get(status, "⚪")
+
+        msg_parts = [
+            f"📸 *Photo saved & analyzed!*\n",
+            f"{status_emoji} *Health:* {status} ({confidence})",
+            f"🌱 *Growth Stage:* {growth}",
+            f"📝 *Summary:* {summary}",
+        ]
+        if diseases:
+            msg_parts.append(f"\n⚠️ *Issues Detected:*")
+            for d in diseases:
+                msg_parts.append(f"  • {d}")
+        if recommendations:
+            msg_parts.append(f"\n💡 *Recommendations:*")
+            for r in recommendations:
+                msg_parts.append(f"  • {r}")
+
+        reply = "\n".join(msg_parts)
+    else:
+        reply = (
+            f"✅ *Photo saved!* 📸\n\n"
+            f"Thank you, *{farmer_name}*! Your crop progress photo for *{today}* has been recorded.\n"
+            f"Keep sending daily photos so we can track your crop's growth! 🌱"
+        )
+
+    # Translate reply to farmer's preferred language
+    lang = _get_farmer_language(phone)
+    reply = _translate(reply, lang)
+
+    await update.message.reply_text(reply, parse_mode="Markdown")
+    logger.info(
+        "Saved crop photo for %s: %s (analysis: %s)",
+        phone,
+        filepath,
+        "yes" if analysis else "no",
     )
-    logger.info("Saved crop photo for %s: %s", phone, filepath)
 
 
 async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):

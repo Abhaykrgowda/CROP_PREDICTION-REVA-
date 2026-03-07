@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import json
 import sqlite3
 from datetime import datetime, timedelta
 import pickle
@@ -135,10 +136,17 @@ def init_db():
             phone TEXT NOT NULL,
             date TEXT NOT NULL,
             filename TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            analysis TEXT
         )
         """
     )
+
+    # Add analysis column if missing (existing databases)
+    try:
+        cursor.execute("ALTER TABLE crop_photos ADD COLUMN analysis TEXT")
+    except Exception:
+        pass  # column already exists
 
     connection.commit()
     connection.close()
@@ -570,19 +578,26 @@ def get_farmer_photos():
 
     connection = get_db_connection()
     rows = connection.execute(
-        "SELECT date, filename, created_at FROM crop_photos WHERE phone = ? ORDER BY date DESC, created_at DESC",
+        "SELECT date, filename, created_at, analysis FROM crop_photos WHERE phone = ? ORDER BY date DESC, created_at DESC",
         (phone,),
     ).fetchall()
     connection.close()
 
     photos = []
     for r in rows:
+        analysis = None
+        if r["analysis"]:
+            try:
+                analysis = json.loads(r["analysis"])
+            except Exception:
+                pass
         photos.append(
             {
                 "date": r["date"],
                 "filename": r["filename"],
                 "url": f"/photos/{phone}/{r['filename']}",
                 "created_at": r["created_at"],
+                "analysis": analysis,
             }
         )
     return jsonify({"photos": photos})

@@ -277,8 +277,11 @@ const Results = () => {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.15 }}
+              role="button"
+              tabIndex={0}
               onClick={() => navigate(`/crop/${crop.name.toLowerCase()}`, { state: { crop, farmState: state } })}
-              className="cursor-pointer overflow-hidden rounded-xl border bg-card shadow-card transition-all hover:shadow-elevated hover:-translate-y-1"
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/crop/${crop.name.toLowerCase()}`, { state: { crop, farmState: state } }); } }}
+              className="cursor-pointer overflow-hidden rounded-xl border bg-card shadow-card transition-all hover:shadow-elevated hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2"
             >
               <div className="h-40 overflow-hidden bg-primary/5">
                 <img
@@ -299,7 +302,7 @@ const Results = () => {
                 </div>
                 <p className="text-sm text-muted-foreground">₹{crop.price.toLocaleString()} / Quintal</p>
                 {crop.priceStatus && crop.priceStatus !== "ok" && (
-                  <p className="mt-1 text-xs text-warning">Market price fallback used ({crop.priceStatus})</p>
+                  <p className="mt-1 text-xs text-warning">Current market price not available for this crop</p>
                 )}
                 <div className="mt-3 flex gap-2">
                   <Button
