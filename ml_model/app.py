@@ -128,6 +128,18 @@ def init_db():
     except Exception:
         pass  # column already exists
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS crop_photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            phone TEXT NOT NULL,
+            date TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
     connection.commit()
     connection.close()
 
@@ -547,6 +559,42 @@ def set_farmer_language():
         ),
         404,
     )
+
+
+@app.route("/farmer/photos", methods=["GET"])
+def get_farmer_photos():
+    """Return all crop photos for a farmer, grouped by date."""
+    phone = normalize_phone(request.args.get("phone", ""))
+    if not phone:
+        return jsonify({"error": "phone is required"}), 400
+
+    connection = get_db_connection()
+    rows = connection.execute(
+        "SELECT date, filename, created_at FROM crop_photos WHERE phone = ? ORDER BY date DESC, created_at DESC",
+        (phone,),
+    ).fetchall()
+    connection.close()
+
+    photos = []
+    for r in rows:
+        photos.append(
+            {
+                "date": r["date"],
+                "filename": r["filename"],
+                "url": f"/photos/{phone}/{r['filename']}",
+                "created_at": r["created_at"],
+            }
+        )
+    return jsonify({"photos": photos})
+
+
+@app.route("/photos/<phone>/<filename>", methods=["GET"])
+def serve_photo(phone, filename):
+    """Serve a crop photo from disk."""
+    from flask import send_from_directory
+
+    photo_dir = os.path.join(os.path.dirname(__file__), "crop_photos", phone)
+    return send_from_directory(photo_dir, filename)
 
 
 if __name__ == "__main__":

@@ -371,6 +371,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filepath = os.path.join(phone_dir, filename)
     await file.download_to_drive(filepath)
 
+    # Save metadata to DB so the calendar can display the photo
+    conn = _get_conn()
+    conn.execute(
+        "INSERT INTO crop_photos (phone, date, filename, created_at) VALUES (?, ?, ?, ?)",
+        (phone, today, filename, datetime.now().isoformat()),
+    )
+    conn.commit()
+    conn.close()
+
     await update.message.reply_text(
         f"✅ *Photo saved!* 📸\n\n"
         f"Thank you, *{farmer_name}*! Your crop progress photo for *{today}* has been recorded.\n"

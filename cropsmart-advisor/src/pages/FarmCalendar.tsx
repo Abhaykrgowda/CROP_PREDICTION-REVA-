@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Loader2,
   X,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -108,6 +109,7 @@ const FarmCalendar = () => {
   const [schedule, setSchedule] = useState<DaySchedule[]>(routeState.schedule ?? []);
   const [source, setSource] = useState(routeState.source ?? "");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [photoMap, setPhotoMap] = useState<Record<string, { url: string; filename: string }[]>>({});
   const calendarRef = useRef<HTMLDivElement>(null);
 
   // Close popover on click outside the calendar grid
@@ -129,6 +131,26 @@ const FarmCalendar = () => {
 
   // Notification state
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  /* ---------- Fetch crop photos from backend ---------- */
+  useEffect(() => {
+    const farmerRaw = localStorage.getItem("farmer");
+    const phone = farmerRaw ? JSON.parse(farmerRaw)?.phone : null;
+    if (!phone) return;
+
+    fetch(`http://127.0.0.1:5000/farmer/photos?phone=${phone}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const map: Record<string, { url: string; filename: string }[]> = {};
+        for (const p of data.photos ?? []) {
+          const dateKey = p.date;
+          if (!map[dateKey]) map[dateKey] = [];
+          map[dateKey].push({ url: `http://127.0.0.1:5000${p.url}`, filename: p.filename });
+        }
+        setPhotoMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   /* ---------- Fetch schedule from backend if not passed via state ---------- */
   useEffect(() => {
@@ -381,6 +403,8 @@ const FarmCalendar = () => {
               const isTodayCell = isToday(cell);
               const isSelected = selectedDate === dateStr;
               const hasTask = dayData && dayData.tasks.length > 0;
+              const dayPhotos = photoMap[dateStr] ?? [];
+              const isPast = cell < today && !isTodayCell;
 
               // Collect unique activity dots
               const uniqueTypes = [...new Set((dayData?.tasks ?? []).map((t) => t.type))];
@@ -398,8 +422,19 @@ const FarmCalendar = () => {
                       {cell.getDate()}
                     </span>
 
-                    {/* Activity dots & mini labels */}
-                    {hasTask && (
+                    {/* If photos exist for this day, show a big photo; otherwise show activity dots */}
+                    {dayPhotos.length > 0 ? (
+                      <div className="mt-1 flex flex-col items-center">
+                        <img
+                          src={dayPhotos[0].url}
+                          alt="Crop"
+                          className="w-full h-[70px] rounded-md object-cover border-2 border-emerald-300"
+                        />
+                        {dayPhotos.length > 1 && (
+                          <span className="mt-0.5 text-[10px] text-emerald-600 font-medium">+{dayPhotos.length - 1} more</span>
+                        )}
+                      </div>
+                    ) : hasTask ? (
                       <div className="mt-1 flex flex-col gap-1">
                         {uniqueTypes.slice(0, 3).map((type) => {
                           const meta = getMeta(type);
@@ -414,12 +449,12 @@ const FarmCalendar = () => {
                           <span className="text-xs text-muted-foreground">+{uniqueTypes.length - 3} more</span>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </button>
 
                   {/* Hover card popover on click */}
                   <AnimatePresence>
-                    {isSelected && dayData && dayData.tasks.length > 0 && (
+                    {isSelected && (dayPhotos.length > 0 || (dayData && dayData.tasks.length > 0)) && (
                       <motion.div
                         initial={{ opacity: 0, scale: 0.92, y: -4 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -436,20 +471,41 @@ const FarmCalendar = () => {
                             <X className="h-4 w-4 text-muted-foreground" />
                           </button>
                         </div>
-                        <div className="space-y-2.5 max-h-64 overflow-y-auto">
-                          {dayData.tasks.map((task, ti) => {
-                            const meta = getMeta(task.type);
-                            return (
-                              <div key={ti} className={`flex items-start gap-3 rounded-lg p-3 ${meta.bg}/40`}>
-                                <meta.Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${meta.color}`} />
-                                <div className="min-w-0">
-                                  <p className="text-sm font-bold leading-tight">{task.title}</p>
-                                  <p className="mt-1 text-xs leading-snug text-muted-foreground">{task.description}</p>
+
+                        {/* If photos exist, show ONLY photos (no tasks) */}
+                        {dayPhotos.length > 0 ? (
+                          <div>
+                            <p className="mb-2 text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                              <Camera className="h-3 w-3" /> Crop Progress Photos
+                            </p>
+                            <div className="space-y-2">
+                              {dayPhotos.map((photo, pi) => (
+                                <img
+                                  key={pi}
+                                  src={photo.url}
+                                  alt={`Crop ${pi + 1}`}
+                                  className="w-full rounded-lg object-cover border-2 border-emerald-200 cursor-pointer hover:scale-[1.02] transition-transform"
+                                  onClick={() => window.open(photo.url, "_blank")}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ) : dayData && dayData.tasks.length > 0 ? (
+                          <div className="space-y-2.5 max-h-64 overflow-y-auto">
+                            {dayData.tasks.map((task, ti) => {
+                              const meta = getMeta(task.type);
+                              return (
+                                <div key={ti} className={`flex items-start gap-3 rounded-lg p-3 ${meta.bg}/40`}>
+                                  <meta.Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${meta.color}`} />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-bold leading-tight">{task.title}</p>
+                                    <p className="mt-1 text-xs leading-snug text-muted-foreground">{task.description}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -461,7 +517,7 @@ const FarmCalendar = () => {
 
         {/* Selected day detail panel */}
         <AnimatePresence>
-          {selectedDaySchedule && (
+          {selectedDate && (selectedDaySchedule || (photoMap[selectedDate] ?? []).length > 0) && (
             <motion.div
               key={selectedDate}
               initial={{ opacity: 0, y: 20 }}
@@ -471,40 +527,61 @@ const FarmCalendar = () => {
             >
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-bold">
-                  📅 Tasks for {selectedDate}
+                  📅 {selectedDate}
                 </h3>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedDate(null)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {selectedDaySchedule.tasks.map((task, i) => {
-                  const meta = getMeta(task.type);
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className={`flex items-start gap-3 rounded-lg border p-4 ${meta.bg}/30`}
-                    >
-                      <div className={`mt-0.5 rounded-lg p-2 ${meta.bg}`}>
-                        <meta.Icon className={`h-5 w-5 ${meta.color}`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${meta.bg} ${meta.color}`}>
-                            {task.type}
-                          </span>
+              {/* If photos exist for this date, show ONLY big photos; otherwise show tasks */}
+              {(photoMap[selectedDate] ?? []).length > 0 ? (
+                <div>
+                  <h4 className="mb-3 text-sm font-bold text-emerald-600 flex items-center gap-1.5">
+                    <Camera className="h-4 w-4" /> Crop Progress Photos
+                  </h4>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {(photoMap[selectedDate] ?? []).map((photo, pi) => (
+                      <img
+                        key={pi}
+                        src={photo.url}
+                        alt={`Crop progress ${pi + 1}`}
+                        className="w-full rounded-xl object-cover border-2 border-emerald-200 cursor-pointer hover:scale-[1.02] transition-transform shadow-sm"
+                        onClick={() => window.open(photo.url, "_blank")}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : selectedDaySchedule && selectedDaySchedule.tasks.length > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-bold text-primary">Tasks</h4>
+                  {selectedDaySchedule.tasks.map((task, i) => {
+                    const meta = getMeta(task.type);
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={`flex items-start gap-3 rounded-lg border p-4 ${meta.bg}/30`}
+                      >
+                        <div className={`mt-0.5 rounded-lg p-2 ${meta.bg}`}>
+                          <meta.Icon className={`h-5 w-5 ${meta.color}`} />
                         </div>
-                        <p className="mt-1 text-sm font-semibold">{task.title}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{task.description}</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${meta.bg} ${meta.color}`}>
+                              {task.type}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm font-semibold">{task.title}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">{task.description}</p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>
