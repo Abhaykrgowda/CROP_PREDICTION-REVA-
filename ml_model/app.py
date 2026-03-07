@@ -98,10 +98,35 @@ def init_db():
             end_date TEXT NOT NULL,
             schedule_json TEXT NOT NULL,
             source TEXT,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            latitude REAL,
+            longitude REAL,
+            nitrogen REAL,
+            phosphorus REAL,
+            potassium REAL
         )
         """
     )
+    # Add columns if they don't exist (for existing DBs)
+    for col, coltype in [
+        ("latitude", "REAL"),
+        ("longitude", "REAL"),
+        ("nitrogen", "REAL"),
+        ("phosphorus", "REAL"),
+        ("potassium", "REAL"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE cultivation_plans ADD COLUMN {col} {coltype}")
+        except Exception:
+            pass  # column already exists
+
+    # Ensure telegram_links has a preferred_language column
+    try:
+        cursor.execute(
+            "ALTER TABLE telegram_links ADD COLUMN preferred_language TEXT DEFAULT 'en'"
+        )
+    except Exception:
+        pass  # column already exists
 
     connection.commit()
     connection.close()
@@ -354,6 +379,12 @@ def cultivation_plan():
     unit = str(data.get("unit", "Acres") or "Acres")
     start_date = data.get("start_date")  # optional, defaults to today
 
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    nitrogen = data.get("nitrogen")
+    phosphorus = data.get("phosphorus")
+    potassium = data.get("potassium")
+
     result = generate_cultivation_plan(
         crop=crop,
         soil_type=soil_type,
@@ -366,12 +397,38 @@ def cultivation_plan():
     # Auto-persist if phone provided
     phone = str(data.get("phone", "")).strip()
     if phone and result.get("schedule"):
-        _save_plan(phone, crop, soil_type, weather, farm_size, unit, result)
+        _save_plan(
+            phone,
+            crop,
+            soil_type,
+            weather,
+            farm_size,
+            unit,
+            result,
+            latitude=latitude,
+            longitude=longitude,
+            nitrogen=nitrogen,
+            phosphorus=phosphorus,
+            potassium=potassium,
+        )
 
     return jsonify(result)
 
 
-def _save_plan(phone, crop, soil_type, weather, farm_size, unit, result):
+def _save_plan(
+    phone,
+    crop,
+    soil_type,
+    weather,
+    farm_size,
+    unit,
+    result,
+    latitude=None,
+    longitude=None,
+    nitrogen=None,
+    phosphorus=None,
+    potassium=None,
+):
     """Persist a cultivation plan for a farmer."""
     import json as _json
 
@@ -385,8 +442,8 @@ def _save_plan(phone, crop, soil_type, weather, farm_size, unit, result):
     cursor.execute("DELETE FROM cultivation_plans WHERE phone = ?", (phone,))
     cursor.execute(
         """INSERT INTO cultivation_plans
-           (phone, crop, soil_type, weather_json, farm_size, unit, start_date, end_date, schedule_json, source, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (phone, crop, soil_type, weather_json, farm_size, unit, start_date, end_date, schedule_json, source, created_at, latitude, longitude, nitrogen, phosphorus, potassium)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             phone,
             crop,
@@ -399,6 +456,11 @@ def _save_plan(phone, crop, soil_type, weather, farm_size, unit, result):
             _json.dumps(schedule),
             result.get("source", ""),
             datetime.now().isoformat(),
+            float(latitude) if latitude is not None else None,
+            float(longitude) if longitude is not None else None,
+            float(nitrogen) if nitrogen is not None else None,
+            float(phosphorus) if phosphorus is not None else None,
+            float(potassium) if potassium is not None else None,
         ),
     )
     connection.commit()
@@ -420,7 +482,7 @@ def _get_active_plan(phone):
     connection.close()
     if not row:
         return None
-    return {
+    plan = {
         "crop": row["crop"],
         "soil_type": row["soil_type"],
         "weather": _json.loads(row["weather_json"]) if row["weather_json"] else {},
@@ -431,6 +493,13 @@ def _get_active_plan(phone):
         "schedule": _json.loads(row["schedule_json"]),
         "source": row["source"],
     }
+    # Include lat/lng/NPK if stored
+    for col in ("latitude", "longitude", "nitrogen", "phosphorus", "potassium"):
+        try:
+            plan[col] = row[col]
+        except (IndexError, KeyError):
+            pass
+    return plan
 
 
 @app.route("/farmer/plan", methods=["GET"])
@@ -443,6 +512,41 @@ def get_farmer_plan():
     if not plan:
         return jsonify({"active_plan": None})
     return jsonify({"active_plan": plan})
+
+
+@app.route("/farmer/language", methods=["POST"])
+def set_farmer_language():
+    """Store the farmer's preferred language for Telegram notifications."""
+    data = request.get_json(force=True)
+    phone = normalize_phone(data.get("phone", ""))
+    language = (data.get("language") or "en").strip().lower()
+
+    if not phone:
+        return jsonify({"error": "phone is required"}), 400
+
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        "UPDATE telegram_links SET preferred_language = ? WHERE phone = ?",
+        (language, phone),
+    )
+    updated = cursor.rowcount
+    connection.commit()
+    connection.close()
+
+    if updated:
+        return jsonify(
+            {"message": f"Language set to '{language}'", "language": language}
+        )
+    return (
+        jsonify(
+            {
+                "message": "No linked Telegram account found for this phone",
+                "language": language,
+            }
+        ),
+        404,
+    )
 
 
 if __name__ == "__main__":

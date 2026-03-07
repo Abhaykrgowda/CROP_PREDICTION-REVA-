@@ -88,10 +88,21 @@ const toDateStr = (d: Date) =>
 /* ------------------------------------------------------------------ */
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
+const getCalendarState = (locationState: unknown): CalendarState => {
+  if (locationState && typeof locationState === "object" && "schedule" in locationState) {
+    return locationState as CalendarState;
+  }
+  try {
+    const stored = sessionStorage.getItem("calendarState");
+    if (stored) return JSON.parse(stored) as CalendarState;
+  } catch { /* ignore */ }
+  return {} as CalendarState;
+};
+
 const FarmCalendar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const routeState = (location.state as CalendarState | null) ?? ({} as CalendarState);
+  const routeState = getCalendarState(location.state);
 
   const [loading, setLoading] = useState(!routeState.schedule);
   const [schedule, setSchedule] = useState<DaySchedule[]>(routeState.schedule ?? []);
@@ -255,6 +266,30 @@ const FarmCalendar = () => {
               {source === "gemini" ? " (AI‑generated)" : source === "fallback" ? " (template)" : ""}
             </p>
           </div>
+          <a
+            href={(() => {
+              const farmer = JSON.parse(localStorage.getItem("farmer") || "{}");
+              const fi = JSON.parse(localStorage.getItem("farmInput") || "{}");
+              const params = new URLSearchParams({
+                name: farmer.name || "",
+                phone: farmer.phone || "",
+                n: String(fi.N ?? 90),
+                p: String(fi.P ?? 42),
+                k: String(fi.K ?? 43),
+                farmSize: String(fi.farmSize ?? routeState.farm_size ?? 1),
+                lat: String(fi.latitude ?? ""),
+                lng: String(fi.longitude ?? ""),
+                from: "cropsmart",
+              });
+              return `http://localhost:3001/farmer-dashboard?${params.toString()}`;
+            })()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1.5 text-xs font-semibold text-primary-foreground backdrop-blur-sm border border-white/30 transition-all hover:bg-white/30 hover:scale-105"
+          >
+            <Leaf className="h-3.5 w-3.5" />
+            Verdant Credits
+          </a>
           <Button
             variant="ghost"
             size="sm"

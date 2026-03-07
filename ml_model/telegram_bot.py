@@ -38,6 +38,13 @@ from telegram.ext import (
     filters,
 )
 
+try:
+    from deep_translator import GoogleTranslator
+
+    HAS_TRANSLATOR = True
+except ImportError:
+    HAS_TRANSLATOR = False
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -129,7 +136,7 @@ def _get_all_linked_farmers():
     """Return all farmers who have linked their Telegram."""
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT phone, chat_id, farmer_name FROM telegram_links"
+        "SELECT phone, chat_id, farmer_name, preferred_language FROM telegram_links"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -154,6 +161,32 @@ def _get_todays_tasks(phone: str):
                 for task in day.get("tasks", []):
                     all_tasks.append({**task, "crop": crop})
     return all_tasks
+
+
+def _get_farmer_language(phone: str) -> str:
+    """Return the preferred language code for a farmer, default 'en'."""
+    conn = _get_conn()
+    try:
+        row = conn.execute(
+            "SELECT preferred_language FROM telegram_links WHERE phone = ?", (phone,)
+        ).fetchone()
+        return (row["preferred_language"] or "en") if row else "en"
+    except Exception:
+        return "en"
+    finally:
+        conn.close()
+
+
+def _translate(text: str, target_lang: str) -> str:
+    """Translate text to target language. Returns original if translation fails or lang is 'en'."""
+    if not HAS_TRANSLATOR or not target_lang or target_lang == "en":
+        return text
+    try:
+        translated = GoogleTranslator(source="en", target=target_lang).translate(text)
+        return translated or text
+    except Exception as e:
+        logger.warning("Translation to '%s' failed: %s", target_lang, e)
+        return text
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +395,8 @@ async def cmd_today(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     tasks = _get_todays_tasks(link["phone"])
     msg = _format_task_message(link["farmer_name"], tasks)
+    lang = _get_farmer_language(link["phone"])
+    msg = _translate(msg, lang)
     await update.message.reply_text(msg)
 
 
@@ -399,9 +434,11 @@ async def daily_notification_job(context: ContextTypes.DEFAULT_TYPE):
         phone = farmer["phone"]
         chat_id = farmer["chat_id"]
         name = farmer.get("farmer_name")
+        lang = farmer.get("preferred_language") or "en"
 
         tasks = _get_todays_tasks(phone)
         msg = _format_task_message(name, tasks)
+        msg = _translate(msg, lang)
 
         try:
             await context.bot.send_message(chat_id=chat_id, text=msg)

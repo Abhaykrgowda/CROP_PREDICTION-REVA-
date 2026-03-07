@@ -240,8 +240,18 @@ const Dashboard = () => {
         throw new Error("No predictions returned from model");
       }
 
-      navigate("/results", {
-        state: {
+      // Persist farm input for verdant-credits integration
+      localStorage.setItem("farmInput", JSON.stringify({
+        N: Number(nitrogen),
+        P: Number(phosphorus),
+        K: Number(potassium),
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        farmSize: Number(farmSize),
+        unit,
+      }));
+
+      const resultsState = {
           soilType,
           latitude,
           longitude,
@@ -250,8 +260,10 @@ const Dashboard = () => {
           weather,
           predictions,
           modelInput,
-        },
-      });
+      };
+      // Persist in sessionStorage so the data survives Google Translate page reloads
+      sessionStorage.setItem("resultsState", JSON.stringify(resultsState));
+      navigate("/results", { state: resultsState });
     } catch {
       toast.error("Could not connect to ML model API. Make sure backend is running on port 5000.");
     } finally {

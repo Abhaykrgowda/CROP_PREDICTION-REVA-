@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Sprout, MapPin, CloudSun, Wheat, TrendingUp } from "lucide-react";
+import { Sprout, MapPin, CloudSun, Wheat, TrendingUp, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroFarm from "@/assets/hero-farm.jpg";
 
@@ -36,6 +35,13 @@ const features = [
     desc: "Fetch crop market price using AGMARKNET API.",
     color: "bg-warning/10 text-warning",
   },
+  {
+    icon: Leaf,
+    title: "Verdant Carbon Credits",
+    desc: "Earn and trade carbon credits from your sustainable farming practices.",
+    color: "bg-emerald-100 text-emerald-700",
+    link: "http://localhost:3001",
+  },
 ];
 
 const container = {
@@ -50,61 +56,9 @@ const item = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const [showTranslator, setShowTranslator] = useState(false);
-
-  useEffect(() => {
-    (window as any).googleTranslateElementInit = () => {
-      const googleWindow = (window as any).google;
-      if (!googleWindow?.translate?.TranslateElement) {
-        return;
-      }
-
-      const translatorRoot = document.getElementById("google_translate_element");
-      if (!translatorRoot || translatorRoot.childElementCount > 0) {
-        return;
-      }
-
-      new googleWindow.translate.TranslateElement(
-        {
-          pageLanguage: "en",
-        },
-        "google_translate_element",
-      );
-    };
-
-    const existingScript = document.getElementById("google-translate-script");
-    if (!existingScript) {
-      const script = document.createElement("script");
-      script.id = "google-translate-script";
-      script.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
-      script.async = true;
-      document.body.appendChild(script);
-    } else if ((window as any).google?.translate?.TranslateElement) {
-      (window as any).googleTranslateElementInit();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!showTranslator) {
-      return;
-    }
-
-    const initFn = (window as any).googleTranslateElementInit;
-    if (typeof initFn === "function") {
-      setTimeout(() => initFn(), 0);
-    }
-  }, [showTranslator]);
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="fixed right-4 top-4 z-50 flex flex-col items-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => setShowTranslator((previous) => !previous)}>
-          🌐 Language
-        </Button>
-        <div className={`rounded-md border bg-card p-2 shadow-card ${showTranslator ? "block" : "hidden"}`}>
-          <div id="google_translate_element" />
-        </div>
-      </div>
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -147,19 +101,27 @@ const Index = () => {
           viewport={{ once: true }}
           className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {features.map((f) => (
-            <motion.div
-              key={f.title}
-              variants={item}
-              className="rounded-lg border bg-card p-6 shadow-card transition-shadow hover:shadow-elevated"
-            >
-              <div className={`mb-4 inline-flex rounded-lg p-3 ${f.color}`}>
-                <f.icon className="h-6 w-6" />
-              </div>
-              <h3 className="mb-2 text-lg font-bold">{f.title}</h3>
-              <p className="text-sm text-muted-foreground">{f.desc}</p>
-            </motion.div>
-          ))}
+          {features.map((f) => {
+            const content = (
+              <motion.div
+                key={f.title}
+                variants={item}
+                className={`rounded-lg border bg-card p-6 shadow-card transition-shadow hover:shadow-elevated ${(f as any).link ? 'cursor-pointer ring-2 ring-emerald-300/50 hover:ring-emerald-400' : ''}`}
+              >
+                <div className={`mb-4 inline-flex rounded-lg p-3 ${f.color}`}>
+                  <f.icon className="h-6 w-6" />
+                </div>
+                <h3 className="mb-2 text-lg font-bold">{f.title}</h3>
+                <p className="text-sm text-muted-foreground">{f.desc}</p>
+                {(f as any).link && (
+                  <span className="mt-3 inline-block text-xs font-semibold text-emerald-600">Open Verdant Credits →</span>
+                )}
+              </motion.div>
+            );
+            return (f as any).link ? (
+              <a key={f.title} href={(f as any).link} target="_blank" rel="noopener noreferrer">{content}</a>
+            ) : content;
+          })}
         </motion.div>
       </section>
 

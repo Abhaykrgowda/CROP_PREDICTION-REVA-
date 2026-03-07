@@ -10,6 +10,7 @@ import Results from "./pages/Results";
 import CropDetail from "./pages/CropDetail";
 import FarmCalendar from "./pages/FarmCalendar";
 import NotFound from "./pages/NotFound";
+import LanguageSwitcher from "./components/LanguageSwitcher";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <LanguageSwitcher />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />

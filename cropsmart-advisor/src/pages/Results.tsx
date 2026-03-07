@@ -131,17 +131,34 @@ const createFallbackCrop = (cropName: string) => ({
   labor: 8000,
 });
 
-const Results = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [choosingCrop, setChoosingCrop] = useState<string | null>(null);
-  const state = (location.state as {
+type ResultsState = {
     soilType?: string;
+    latitude?: string;
+    longitude?: string;
     farmSize?: string;
     unit?: string;
     weather?: { temp?: number; humidity?: number; rainfall?: number };
     predictions?: PredictionItem[];
-  }) || {};
+    modelInput?: { N?: number; P?: number; K?: number };
+};
+
+const getResultsState = (locationState: unknown): ResultsState => {
+  // Prefer React Router state; fall back to sessionStorage (survives Google Translate reloads)
+  if (locationState && typeof locationState === "object" && "predictions" in locationState) {
+    return locationState as ResultsState;
+  }
+  try {
+    const stored = sessionStorage.getItem("resultsState");
+    if (stored) return JSON.parse(stored) as ResultsState;
+  } catch { /* ignore */ }
+  return {};
+};
+
+const Results = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [choosingCrop, setChoosingCrop] = useState<string | null>(null);
+  const state = getResultsState(location.state);
 
   const handleChooseCrop = async (cropName: string) => {
     setChoosingCrop(cropName);
@@ -160,12 +177,16 @@ const Results = () => {
           unit: state.unit ?? "Acres",
           start_date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
           phone: farmerPhone,
+          latitude: Number(state.latitude) || undefined,
+          longitude: Number(state.longitude) || undefined,
+          nitrogen: state.modelInput?.N ?? undefined,
+          phosphorus: state.modelInput?.P ?? undefined,
+          potassium: state.modelInput?.K ?? undefined,
         }),
       });
       const data = await res.json();
       if (data.schedule) {
-        navigate("/calendar", {
-          state: {
+        const calendarState = {
             crop: cropName,
             soil_type: state.soilType,
             weather: state.weather,
@@ -174,8 +195,9 @@ const Results = () => {
             schedule: data.schedule,
             source: data.source,
             start_date: data.start_date,
-          },
-        });
+        };
+        sessionStorage.setItem("calendarState", JSON.stringify(calendarState));
+        navigate("/calendar", { state: calendarState });
       } else {
         toast.error("Failed to generate cultivation plan.");
       }

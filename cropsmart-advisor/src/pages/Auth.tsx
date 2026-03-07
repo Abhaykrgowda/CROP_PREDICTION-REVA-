@@ -137,8 +137,39 @@ const Auth = () => {
 
       // If the farmer has an active cultivation plan, go straight to calendar
       if (payload.active_plan) {
-        navigate("/calendar", {
-          state: {
+        // Determine lat/lng: prefer plan values, then try browser geolocation, then defaults
+        let lat = payload.active_plan.latitude ?? 0;
+        let lng = payload.active_plan.longitude ?? 0;
+
+        if ((!lat || !lng) && navigator.geolocation) {
+          try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 })
+            );
+            lat = Number(pos.coords.latitude.toFixed(6));
+            lng = Number(pos.coords.longitude.toFixed(6));
+          } catch {
+            // Geolocation unavailable — use Hyderabad defaults
+            lat = 17.385;
+            lng = 78.4867;
+          }
+        } else if (!lat || !lng) {
+          lat = 17.385;
+          lng = 78.4867;
+        }
+
+        // Persist farm input for verdant-credits integration
+        localStorage.setItem("farmInput", JSON.stringify({
+          N: payload.active_plan.nitrogen ?? 90,
+          P: payload.active_plan.phosphorus ?? 42,
+          K: payload.active_plan.potassium ?? 43,
+          latitude: lat,
+          longitude: lng,
+          farmSize: payload.active_plan.farm_size ?? 1,
+          unit: payload.active_plan.unit ?? "Acres",
+        }));
+
+        const calendarState = {
             crop: payload.active_plan.crop,
             soil_type: payload.active_plan.soil_type,
             weather: payload.active_plan.weather,
@@ -147,8 +178,9 @@ const Auth = () => {
             schedule: payload.active_plan.schedule,
             source: payload.active_plan.source,
             start_date: payload.active_plan.start_date,
-          },
-        });
+        };
+        sessionStorage.setItem("calendarState", JSON.stringify(calendarState));
+        navigate("/calendar", { state: calendarState });
       } else {
         navigate("/dashboard", { state: { farmer: payload?.farmer } });
       }
