@@ -219,14 +219,17 @@ const Results = () => {
     const predictedInvestment = prediction.estimated_cost_per_acre != null
       ? Number(prediction.estimated_cost_per_acre) * areaAcres
       : matchedCrop?.investment;
-    const predictedYield = prediction.expected_yield_qtl_per_acre ?? matchedCrop?.yield;
+    const yieldPerAcre = prediction.expected_yield_qtl_per_acre ?? matchedCrop?.yield ?? 20;
+    const totalYield = yieldPerAcre * areaAcres; // Calculate total yield for the farm area
     return {
       ...(matchedCrop ?? createFallbackCrop(prediction.crop)),
       image: getCropImageFromAssets(displayName),
       confidence: prediction.confidence,
       price: marketPrice,
       investment: predictedInvestment ?? 30000,
-      yield: predictedYield ?? 20,
+      yield: totalYield, // Total yield, not per-acre
+      yieldPerAcre: yieldPerAcre, // Store per-acre for reference
+      areaAcres: areaAcres,
       probableProfit: prediction.probable_profit,
       expectedRevenue: prediction.expected_revenue,
       priceStatus: prediction.price_status,

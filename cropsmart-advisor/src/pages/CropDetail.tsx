@@ -19,7 +19,14 @@ const CropDetail = () => {
     );
   }
 
-  const profit = crop.price * crop.yield - crop.investment;
+  // Use backend-calculated profit if available, otherwise calculate
+  const profit = crop.probableProfit !== undefined && crop.probableProfit !== null 
+    ? crop.probableProfit 
+    : crop.price * crop.yield - crop.investment;
+  
+  const revenue = crop.expectedRevenue !== undefined && crop.expectedRevenue !== null
+    ? crop.expectedRevenue
+    : crop.price * crop.yield;
 
   return (
     <div className="min-h-screen bg-background pb-12">
@@ -52,6 +59,22 @@ const CropDetail = () => {
           <p className="mt-1 text-xs text-muted-foreground">Source: AGMARKNET API</p>
         </Card>
 
+        {/* Farm Size */}
+        {crop.areaAcres && (
+          <Card icon={<BarChart3 className="h-5 w-5" />} title="Farm Details" color="bg-accent-light text-accent">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex justify-between rounded-lg bg-background p-3">
+                <span className="text-muted-foreground">Farm Area</span>
+                <span className="font-semibold">{crop.areaAcres} Acres</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-background p-3">
+                <span className="text-muted-foreground">Yield per Acre</span>
+                <span className="font-semibold">{crop.yieldPerAcre} Qtl</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Investment */}
         <Card icon={<Coins className="h-5 w-5" />} title="Investment Estimate" color="bg-earth-light text-earth">
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -75,10 +98,14 @@ const CropDetail = () => {
 
         {/* Yield & Profit */}
         <Card icon={<BarChart3 className="h-5 w-5" />} title="Expected Yield & Profit" color="bg-profit-light text-profit">
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div className="rounded-lg bg-background p-4">
-              <p className="text-xs text-muted-foreground">Expected Yield</p>
-              <p className="text-2xl font-extrabold">{crop.yield} <span className="text-sm font-normal">Quintals</span></p>
+              <p className="text-xs text-muted-foreground">Total Yield</p>
+              <p className="text-2xl font-extrabold">{crop.yield} <span className="text-sm font-normal">Qtl</span></p>
+            </div>
+            <div className="rounded-lg bg-background p-4">
+              <p className="text-xs text-muted-foreground">Expected Revenue</p>
+              <p className="text-2xl font-extrabold text-accent">₹{(revenue).toLocaleString()}</p>
             </div>
             <div className="rounded-lg bg-primary/10 p-4">
               <p className="text-xs text-muted-foreground">Expected Profit</p>
@@ -96,15 +123,15 @@ const CropDetail = () => {
             <div className="flex h-6 overflow-hidden rounded-full">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(crop.investment / (crop.price * crop.yield)) * 100}%` }}
+                animate={{ width: `${revenue > 0 ? (crop.investment / revenue) * 100 : 0}%` }}
                 transition={{ duration: 0.8 }}
                 className="gradient-earth"
               />
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(profit / (crop.price * crop.yield)) * 100}%` }}
+                animate={{ width: `${revenue > 0 ? (profit / revenue) * 100 : 0}%` }}
                 transition={{ duration: 0.8, delay: 0.3 }}
-                className="gradient-hero"
+                className={profit >= 0 ? "gradient-hero" : "bg-destructive/50"}
               />
             </div>
           </div>
