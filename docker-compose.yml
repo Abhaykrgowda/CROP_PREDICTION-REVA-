@@ -1,0 +1,50 @@
+services:
+  # ── Flask + ML Backend ──────────────────────────────────
+  backend:
+    build:
+      context: ./ml_model
+      dockerfile: Dockerfile
+    container_name: smartcrop-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./ml_model/.env
+    volumes:
+      - crop_photos:/app/crop_photos
+      - sqlite_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── CropSmart Advisor Frontend ──────────────────────────
+  cropsmart:
+    build:
+      context: ./cropsmart-advisor
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: smartcrop-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Verdant Credits Frontend ────────────────────────────
+  verdant:
+    build:
+      context: ./verdant-credits
+      dockerfile: Dockerfile
+    container_name: verdant-credits
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+
+volumes:
+  crop_photos:
+  sqlite_data:

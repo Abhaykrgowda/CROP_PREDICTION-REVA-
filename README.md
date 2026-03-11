@@ -335,9 +335,119 @@ telegram_links (id, phone UNIQUE, chat_id, farmer_name,
 
 ---
 
+## 🐳 Docker Deployment
+
+The entire stack is containerised with Docker Compose — one command brings up the backend, CropSmart frontend, and Verdant Credits frontend.
+
+### Container overview
+
+| Service | Container | Port | Description |
+|---------|-----------|------|-------------|
+| `backend` | `smartcrop-backend` | `5000` | Flask API served by Gunicorn (4 workers) |
+| `cropsmart` | `smartcrop-frontend` | `80` | CropSmart Advisor (nginx, reverse-proxies `/api` → backend) |
+| `verdant` | `verdant-credits` | `3001` | Verdant Credits marketplace (nginx) |
+
+### Prerequisites
+
+- **Docker** ≥ 20.10
+- **Docker Compose** ≥ 2.0
+
+```bash
+docker --version
+docker compose version
+```
+
+### 1. Configure environment
+
+Make sure `ml_model/.env` contains the required API keys (see the Getting Started section above).
+
+### 2. Build & run locally
+
+```bash
+# Build all images and start every service in the background
+docker compose up -d --build
+
+# Follow logs
+docker compose logs -f
+
+# Check status
+docker compose ps
+```
+
+Once healthy:
+- **CropSmart Advisor** → http://localhost
+- **Verdant Credits** → http://localhost:3001
+- **Backend API** → http://localhost:5000
+
+### 3. Stop / restart
+
+```bash
+# Stop containers (data preserved in volumes)
+docker compose stop
+
+# Stop and remove containers
+docker compose down
+
+# Stop, remove containers AND delete volumes (⚠️ deletes DB + photos)
+docker compose down -v
+```
+
+### 4. Rebuild after code changes
+
+```bash
+docker compose up -d --build          # incremental rebuild
+docker compose build --no-cache       # full clean rebuild
+```
+
+### 5. Push images to Docker Hub
+
+```bash
+# Tag
+docker tag smartcrop-backend   <your-dockerhub>/smartcrop-backend:latest
+docker tag smartcrop-frontend  <your-dockerhub>/smartcrop-frontend:latest
+docker tag verdant-credits     <your-dockerhub>/verdant-credits:latest
+
+# Push
+docker push <your-dockerhub>/smartcrop-backend:latest
+docker push <your-dockerhub>/smartcrop-frontend:latest
+docker push <your-dockerhub>/verdant-credits:latest
+```
+
+### 6. Deploy to a cloud service
+
+**AWS (ECS / EC2):**
+```bash
+# On an EC2 instance with Docker installed
+git clone <repo-url> && cd Smart-Crop-Prediction
+cp your-env-file ml_model/.env
+docker compose up -d --build
+```
+
+**Azure Container Apps / Google Cloud Run:**
+Push images to Docker Hub (step 5), then create services referencing those images in the cloud console and set environment variables there.
+
+**DigitalOcean App Platform:**
+Connect the GitHub repo → select Docker Compose → deploy.
+
+### Docker file inventory
+
+| File | Purpose |
+|------|---------|
+| `ml_model/Dockerfile` | Python 3.11-slim, installs deps, copies model, runs Gunicorn |
+| `cropsmart-advisor/Dockerfile` | Multi-stage: Node build → nginx serve |
+| `verdant-credits/Dockerfile` | Multi-stage: Node build → nginx serve |
+| `cropsmart-advisor/nginx.conf` | SPA routing + `/api` reverse-proxy to backend |
+| `verdant-credits/nginx.conf` | SPA routing |
+| `docker-compose.yml` | Orchestrates all three services |
+| `ml_model/.dockerignore` | Excludes venv, pycache, dev scripts |
+| `cropsmart-advisor/.dockerignore` | Excludes node_modules, dist |
+| `verdant-credits/.dockerignore` | Excludes node_modules, dist |
+
+---
+
 ## 🌐 Deployment (Vercel)
 
-Each sub-project has its own `vercel.json` and can be deployed independently:
+Each sub-project also has a `vercel.json` for serverless deployment:
 
 | Project | Framework | Build Command | Output |
 |---------|-----------|--------------|--------|

@@ -1,5 +1,5 @@
 *.pkl
 .env
-.env.example
 *.db
 __pycache__/
+crop_photos/

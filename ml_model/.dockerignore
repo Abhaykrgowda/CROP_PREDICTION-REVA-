@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+node_modules/
+*.md
+.env.example
+api/
+seed_test_photos.py
+check_db.py
+cleanup_all.py
+cleanup_photos.py
