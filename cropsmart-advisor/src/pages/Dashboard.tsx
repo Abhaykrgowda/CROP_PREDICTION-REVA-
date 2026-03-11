@@ -53,6 +53,22 @@ const Dashboard = () => {
     rainType: (Number(rainfall) || 0) > 10 ? "Moderate Rain" : "Light Rain",
   };
 
+  /** Allow typing freely but clamp the final numeric value within [min, max]. */
+  const clampedSetter =
+    (setter: (v: string) => void, min: number, max: number) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value;
+      if (raw === "" || raw === "-") {
+        setter(raw);
+        return;
+      }
+      const num = Number(raw);
+      if (Number.isNaN(num)) return;
+      if (num < min) { setter(String(min)); return; }
+      if (num > max) { setter(String(max)); return; }
+      setter(raw);
+    };
+
   const inferSoilType = (clay: number, sand: number, silt: number) => {
     if (sand >= clay && sand >= silt) return "Sandy";
     if (clay >= sand && clay >= silt) return "Clay";
@@ -256,6 +272,31 @@ const Dashboard = () => {
       return;
     }
 
+    if (modelInput.ph < 0 || modelInput.ph > 14) {
+      toast.error("pH must be between 0 and 14");
+      return;
+    }
+    if (modelInput.farm_size <= 0) {
+      toast.error("Farm size must be greater than 0");
+      return;
+    }
+    if (modelInput.N < 0 || modelInput.P < 0 || modelInput.K < 0) {
+      toast.error("NPK values cannot be negative");
+      return;
+    }
+    if (modelInput.temperature < -60 || modelInput.temperature > 60) {
+      toast.error("Temperature must be between -60°C and 60°C");
+      return;
+    }
+    if (modelInput.humidity < 0 || modelInput.humidity > 100) {
+      toast.error("Humidity must be between 0% and 100%");
+      return;
+    }
+    if (modelInput.rainfall < 0) {
+      toast.error("Rainfall cannot be negative");
+      return;
+    }
+
     setIsPredicting(true);
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000"}/predict`, {
@@ -396,19 +437,19 @@ const Dashboard = () => {
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-sm font-medium">Nitrogen (N)</label>
-                    <Input value={nitrogen} onChange={(e) => setNitrogen(e.target.value)} type="number" className="h-12" />
+                    <Input value={nitrogen} onChange={clampedSetter(setNitrogen, 0, 300)} type="number" min="0" max="300" className="h-12" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">Phosphorus (P)</label>
-                    <Input value={phosphorus} onChange={(e) => setPhosphorus(e.target.value)} type="number" className="h-12" />
+                    <Input value={phosphorus} onChange={clampedSetter(setPhosphorus, 0, 300)} type="number" min="0" max="300" className="h-12" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">Potassium (K)</label>
-                    <Input value={potassium} onChange={(e) => setPotassium(e.target.value)} type="number" className="h-12" />
+                    <Input value={potassium} onChange={clampedSetter(setPotassium, 0, 300)} type="number" min="0" max="300" className="h-12" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">Soil pH</label>
-                    <Input value={ph} onChange={(e) => setPh(e.target.value)} type="number" step="0.1" className="h-12" />
+                    <Input value={ph} onChange={clampedSetter(setPh, 0, 14)} type="number" step="0.1" min="0" max="14" className="h-12" />
                   </div>
                 </div>
 
@@ -491,15 +532,15 @@ const Dashboard = () => {
                 <div className="mb-6 grid gap-4 sm:grid-cols-3">
                   <div>
                     <label className="mb-1 block text-sm font-medium">Temperature (°C)</label>
-                    <Input value={temperature} onChange={(e) => setTemperature(e.target.value)} type="number" className="h-12" />
+                    <Input value={temperature} onChange={clampedSetter(setTemperature, -60, 60)} type="number" min="-60" max="60" className="h-12" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">Humidity (%)</label>
-                    <Input value={humidity} onChange={(e) => setHumidity(e.target.value)} type="number" className="h-12" />
+                    <Input value={humidity} onChange={clampedSetter(setHumidity, 0, 100)} type="number" min="0" max="100" className="h-12" />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium">Rainfall (cm)</label>
-                    <Input value={rainfall} onChange={(e) => setRainfall(e.target.value)} type="number" className="h-12" />
+                    <Input value={rainfall} onChange={clampedSetter(setRainfall, 0, 1000)} type="number" min="0" max="1000" className="h-12" />
                   </div>
                 </div>
 
@@ -529,7 +570,9 @@ const Dashboard = () => {
                     type="number"
                     placeholder="e.g. 2"
                     value={farmSize}
-                    onChange={(e) => setFarmSize(e.target.value)}
+                    onChange={clampedSetter(setFarmSize, 0, 100000)}
+                    min="0.01"
+                    step="0.01"
                     className="h-14 flex-1 text-xl font-bold"
                   />
                   <Select value={unit} onValueChange={setUnit}>

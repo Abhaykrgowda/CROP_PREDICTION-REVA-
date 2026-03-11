@@ -115,6 +115,23 @@ const FarmerDashboard = () => {
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
 
+    if (npk.n < 0 || npk.p < 0 || npk.k < 0) {
+      toast.error("NPK values cannot be negative");
+      return;
+    }
+    if (size <= 0) {
+      toast.error("Farm size must be greater than 0");
+      return;
+    }
+    if (latitude < -90 || latitude > 90) {
+      toast.error("Latitude must be between -90 and 90");
+      return;
+    }
+    if (longitude < -180 || longitude > 180) {
+      toast.error("Longitude must be between -180 and 180");
+      return;
+    }
+
     const calculatedCredits = calculateCarbonCredits(npk, size);
     const uid = generateUniqueId(latitude, longitude);
 
@@ -235,6 +252,7 @@ const FarmerDashboard = () => {
                     value={n}
                     onChange={(e) => setN(e.target.value)}
                     placeholder="N"
+                    min="0"
                     className={inputClass}
                   />
                   <input
@@ -242,6 +260,7 @@ const FarmerDashboard = () => {
                     value={p}
                     onChange={(e) => setP(e.target.value)}
                     placeholder="P"
+                    min="0"
                     className={inputClass}
                   />
                   <input
@@ -249,6 +268,7 @@ const FarmerDashboard = () => {
                     value={k}
                     onChange={(e) => setK(e.target.value)}
                     placeholder="K"
+                    min="0"
                     className={inputClass}
                   />
                 </div>
@@ -263,6 +283,8 @@ const FarmerDashboard = () => {
                   value={farmSize}
                   onChange={(e) => setFarmSize(e.target.value)}
                   placeholder={t("farmer.farmSizePlaceholder")}
+                  min="0.01"
+                  step="0.01"
                   className={inputClass}
                 />
               </div>
@@ -278,6 +300,8 @@ const FarmerDashboard = () => {
                     value={lat}
                     onChange={(e) => setLat(e.target.value)}
                     placeholder={t("farmer.latitude")}
+                    min="-90"
+                    max="90"
                     className={inputClass}
                   />
                   <input
@@ -286,6 +310,8 @@ const FarmerDashboard = () => {
                     value={lng}
                     onChange={(e) => setLng(e.target.value)}
                     placeholder={t("farmer.longitude")}
+                    min="-180"
+                    max="180"
                     className={inputClass}
                   />
                 </div>

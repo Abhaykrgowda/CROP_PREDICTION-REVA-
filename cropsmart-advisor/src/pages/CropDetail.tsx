@@ -173,7 +173,7 @@ const CropDetail = () => {
           const farmerPhone = farmerRaw ? JSON.parse(farmerRaw)?.phone ?? "" : "";
           const now = new Date();
           try {
-            const res = await fetch("http://127.0.0.1:5000/cultivation-plan", {
+            const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000"}/cultivation-plan`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

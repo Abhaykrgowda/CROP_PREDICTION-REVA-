@@ -164,9 +164,10 @@ const Results = () => {
     setChoosingCrop(cropName);
     const farmerRaw = localStorage.getItem("farmer");
     const farmerPhone = farmerRaw ? JSON.parse(farmerRaw)?.phone ?? "" : "";
+    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000";
     try {
       const now = new Date();
-      const res = await fetch("http://127.0.0.1:5000/cultivation-plan", {
+      const res = await fetch(`${apiBase}/cultivation-plan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

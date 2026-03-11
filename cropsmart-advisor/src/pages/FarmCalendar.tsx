@@ -154,14 +154,15 @@ const FarmCalendar = () => {
     const phone = farmerRaw ? JSON.parse(farmerRaw)?.phone : null;
     if (!phone) return;
 
-    fetch(`http://127.0.0.1:5000/farmer/photos?phone=${phone}`)
+    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000";
+    fetch(`${apiBase}/farmer/photos?phone=${phone}`)
       .then((r) => r.json())
       .then((data) => {
         const map: Record<string, PhotoEntry[]> = {};
         for (const p of data.photos ?? []) {
           const dateKey = p.date;
           if (!map[dateKey]) map[dateKey] = [];
-          map[dateKey].push({ url: `http://127.0.0.1:5000${p.url}`, filename: p.filename, analysis: p.analysis ?? null });
+          map[dateKey].push({ url: `${apiBase}${p.url}`, filename: p.filename, analysis: p.analysis ?? null });
         }
         setPhotoMap(map);
       })
@@ -179,7 +180,7 @@ const FarmCalendar = () => {
     const fetchPlan = async () => {
       setLoading(true);
       try {
-        const res = await fetch("http://127.0.0.1:5000/cultivation-plan", {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:5000"}/cultivation-plan`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

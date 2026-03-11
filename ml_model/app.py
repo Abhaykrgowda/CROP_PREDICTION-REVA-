@@ -347,16 +347,48 @@ def predict():
     farm_size = float(data.get("farm_size", 1) or 1)
     unit = str(data.get("unit", "Acres") or "Acres")
 
+    # Validate required fields exist and are numeric
+    required = ["N", "P", "K", "temperature", "humidity", "ph", "rainfall"]
+    for field in required:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+        try:
+            float(data[field])
+        except (TypeError, ValueError):
+            return jsonify({"error": f"Invalid numeric value for {field}"}), 400
+
+    n_val = float(data["N"])
+    p_val = float(data["P"])
+    k_val = float(data["K"])
+    temp_val = float(data["temperature"])
+    hum_val = float(data["humidity"])
+    ph_val = float(data["ph"])
+    rain_val = float(data["rainfall"])
+
+    # Range validation
+    if n_val < 0 or p_val < 0 or k_val < 0:
+        return jsonify({"error": "NPK values cannot be negative"}), 400
+    if ph_val < 0 or ph_val > 14:
+        return jsonify({"error": "pH must be between 0 and 14"}), 400
+    if hum_val < 0 or hum_val > 100:
+        return jsonify({"error": "Humidity must be between 0 and 100"}), 400
+    if temp_val < -60 or temp_val > 60:
+        return jsonify({"error": "Temperature must be between -60 and 60"}), 400
+    if rain_val < 0:
+        return jsonify({"error": "Rainfall cannot be negative"}), 400
+    if farm_size <= 0:
+        return jsonify({"error": "Farm size must be greater than 0"}), 400
+
     input_data = pd.DataFrame(
         [
             [
-                data["N"],
-                data["P"],
-                data["K"],
-                data["temperature"],
-                data["humidity"],
-                data["ph"],
-                data["rainfall"],
+                n_val,
+                p_val,
+                k_val,
+                temp_val,
+                hum_val,
+                ph_val,
+                rain_val,
             ]
         ],
         columns=columns,
@@ -397,6 +429,8 @@ def cultivation_plan():
     weather = data.get("weather") or {}
     farm_size = float(data.get("farm_size", 1) or 1)
     unit = str(data.get("unit", "Acres") or "Acres")
+    if farm_size <= 0:
+        return jsonify({"error": "Farm size must be greater than 0"}), 400
     start_date = data.get("start_date")  # optional, defaults to today
 
     latitude = data.get("latitude")
